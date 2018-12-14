@@ -335,7 +335,10 @@ class Thread:
     def _learn(self):
         if self.params['tick'] % self.params['learn_freq'] == 0:
             for worm in self.colony:
-                self.stats['loss'] += worm.learn(self.params['tick'])
+                worm_loss = worm.learn(self.params['tick'])
+                print(worm_loss)
+                self.stats['loss'] += worm_loss
+                
             self.stats['loss'] /= len(self.colony)
 
     def _breed(self, worm):
@@ -355,7 +358,6 @@ class Thread:
             sd1 = worm.get_state_dict()
             sd2 = breed.get_state_dict()
             nsd = {}
-
 
             m_f = random.randint(0, 1)
             if m_f == 0:
@@ -402,7 +404,7 @@ class Thread:
                 action = worm(worm_view) # feed worm view to worm
                 action = self._epsilon_rand(action, worm.get_time())
                 move, turn, attack = self._extract_actions(action)
-                print(move, turn, attack)
+                # print(move, turn, attack)
                 movement = (move, turn)
                 worm_position = self._update_worm_position(worm_position, movement)
                 worm.set_position(*worm_position)
