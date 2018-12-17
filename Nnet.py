@@ -10,40 +10,46 @@ class WormNET(nn.Module):
 
         # in - (batch_size, 12 - depth, 11 - width, 12 - height)
         self.features = nn.Sequential(OrderedDict([
-        ('conv1', nn.Conv2d(3*(WORM_RECURRENT_VIEW + 1), 16, 3)),
-        ('prelu1', nn.PReLU(16)),
-        ('conv2', nn.Conv2d(16, 32, 3)),
-        ('prelu2', nn.PReLU(32)),
-        ('conv3', nn.Conv2d(32, 48, 3)),
-        ('prelu3', nn.PReLU(48)),
-        ('conv4', nn.Conv2d(48, 64, 3)),
-        ('prelu4', nn.PReLU(64)),
-        ('conv5', nn.Conv2d(64, 80, 3)),
-        ('prelu5', nn.PReLU(80))]))
+            ('linear1', nn.Linear(2376, 100)),
+            ('relu1', nn.LeakyReLU(0.1))
+        #('conv1', nn.Conv2d(3*(WORM_RECURRENT_VIEW + 1), 16, 3)),
+        #('prelu1', nn.PReLU(16)),
+        #('conv2', nn.Conv2d(16, 32, 3)),
+        #('prelu2', nn.PReLU(32))
+        #('conv3', nn.Conv2d(32, 48, 3)),
+        #('prelu3', nn.PReLU(48)),
+        #('conv4', nn.Conv2d(48, 64, 3)),
+        #('prelu4', nn.PReLU(64)),
+        #('conv5', nn.Conv2d(64, 80, 3)),
+        #('prelu5', nn.PReLU(80))
+            ]))
         # out - (batch_size, 160, 1, 2)
 
         # in - (batch_size, 1, 160, 2)
         self.action = nn.Sequential(OrderedDict([
-        ('linear1', nn.Linear(2, 24)),
-        ('prelu1', nn.PReLU(1)),
-        ('pool1', nn.AvgPool2d(2)),
-        ('linear2', nn.Linear(12, 30)),
-        ('prelu2', nn.PReLU(1)),
-        ('pool2', nn.AvgPool2d(2)),
-        ('linear3', nn.Linear(15, 34)),
-        ('prelu3', nn.PReLU(1)),
-        ('pool3', nn.AvgPool2d(2)),
-        ('linear4', nn.Linear(17, 36)),
-        ('prelu4', nn.PReLU(1)),
-        ('pool4', nn.AvgPool2d(2)),
-        ('pool5', nn.MaxPool2d((10, 1))),
-        ('softmax', nn.Softmax(dim=3))
+        ('linear1', nn.Linear(100, 18)),
+        #('prelu1', nn.PReLU(1)),
+        #('pool1', nn.AvgPool2d(2)),
+        #('linear2', nn.Linear(12, 30)),
+        #('prelu2', nn.PReLU(1)),
+        #('pool2', nn.AvgPool2d(2)),
+        #('linear3', nn.Linear(15, 34)),
+        #('prelu3', nn.PReLU(1)),
+        #('pool3', nn.AvgPool2d(2)),
+        #('linear4', nn.Linear(17, 36)),
+        #('prelu4', nn.PReLU(1)),
+        #('pool4', nn.AvgPool2d(2)),
+        #('pool5', nn.MaxPool2d((10, 1))),
+        ('softmax', nn.Softmax(dim=0))
         ]))
         # out - (batch_size, 1, 1, 18)
 
     def forward(self, x):
         features = self.features(x)
-        features = features.permute(0, 2, 1, 3)
+        #print(features.numpy().shape)
+        #features = features.permute(0, 2, 1, 3)
         prob = self.action(features)
+
+        #print(prob)
 
         return prob

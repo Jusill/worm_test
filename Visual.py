@@ -18,7 +18,7 @@ class Visual:
             cv2.resizeWindow('Frame', self.width, self.height)
         fourcc = cv2.VideoWriter_fourcc(*'MJPG')
         if self.params['save_recap']:
-            self.out = cv2.VideoWriter('./recaps/%s.avi' % str(time.time()), fourcc, self.params['fps'], (3*self.width, 5*self.height))
+            self.out = cv2.VideoWriter('recaps/%s.avi' % str(time.time()), fourcc, self.params['fps'], (3*self.width, 5*self.height))
         self.stats = {}
         self.long_stats = {}
 
@@ -47,7 +47,6 @@ class Visual:
         if self.params['debug_show']:
             cv2.imshow('Frame', self.params_frame)
             cv2.waitKey(10*RENDER_DELAY)
-
 
     def show(self, colony, environment, stats):
         self.colony = colony
@@ -82,13 +81,22 @@ class Visual:
                 draw_color = self.params['food_draw_color']
             cv2.rectangle(self.frame, (x1, y1), (x2, y2), draw_color, -1)
         for w in self.colony:
-            worm_position = w.get_position()
-            worm_x, worm_y, orient = worm_position[:]
-            x1 = worm_x*self.params['width_scale']
-            x2 = (worm_x+1)*self.params['width_scale']
-            y1 = worm_y*self.params['height_scale']
-            y2 = (worm_y+1)*self.params['height_scale']
-            cv2.rectangle(self.frame, (x1, y1), (x2, y2), self.params['worm_draw_color'], -1)
+            if w.get_tribe() == 1 or w.get_tribe() == 0:
+                worm_position = w.get_position()
+                worm_x, worm_y, orient = worm_position[:]
+                x1 = worm_x*self.params['width_scale']
+                x2 = (worm_x+1)*self.params['width_scale']
+                y1 = worm_y*self.params['height_scale']
+                y2 = (worm_y+1)*self.params['height_scale']
+                cv2.rectangle(self.frame, (x1, y1), (x2, y2), self.params['worm_1_draw_color'], -1)
+            elif w.get_tribe() == 2:
+                worm_position = w.get_position()
+                worm_x, worm_y, orient = worm_position[:]
+                x1 = worm_x * self.params['width_scale']
+                x2 = (worm_x + 1) * self.params['width_scale']
+                y1 = worm_y * self.params['height_scale']
+                y2 = (worm_y + 1) * self.params['height_scale']
+                cv2.rectangle(self.frame, (x1, y1), (x2, y2), self.params['worm_2_draw_color'], -1)
 
     def show_stats(self):
         self.stats_frame = np.zeros((self.height, 2*self.width, 3), np.uint8)

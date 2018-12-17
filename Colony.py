@@ -41,14 +41,14 @@ class Colony:
     
     def tail_position(self, x, y, orient):
         if orient == ORIENTATIONS['top']:
-            return (x, y-WORM_LENGTH+1)
+            return x, y-WORM_LENGTH+1
         if orient == ORIENTATIONS['right']:
-            return (x-WORM_LENGTH+1, y)
+            return x-WORM_LENGTH+1, y
         if orient == ORIENTATIONS['bottom']:
-            return (x, y+WORM_LENGTH-1)
+            return x, y+WORM_LENGTH-1
         if orient == ORIENTATIONS['left']:
-            return (x+WORM_LENGTH-1, y)
-        return (x, y)
+            return x+WORM_LENGTH-1, y
+        return x, y
     
     def get_worm_by_position(self, x, y, except_for=-1):
         # TODO: Get worm by tail too == IS READY
@@ -58,7 +58,7 @@ class Colony:
                 return w
             (x_tail, y_tail)= self.tail_position(worm_position[0], worm_position[1], worm_position[2])
             if x_tail == x and y_tail == y:
-                return w;
+                return w
         return None
 
     def interception(self, x, y):
@@ -102,8 +102,8 @@ class Colony:
         self.kill_worm_by_id(ex_ids)
         return len(ex_ids)
 
-    def emplace_worm(self, x, y, orient=0, weights=None, saturation=100):
-        new_worm = Worm(self.act_id, x, y, orient, weights)
+    def emplace_worm(self, x, y, orient=0, weights=None, saturation=100, tribe=0):
+        new_worm = Worm(self.act_id, x, y, orient, weights, tribe=tribe)
         new_worm.set_saturation(saturation)
         self.worms.append(new_worm)
         self.act_id += 1

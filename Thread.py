@@ -4,6 +4,7 @@ import math
 import numpy.random as npr
 from time import sleep
 import random
+from sklearn.utils import shuffle
 
 from Food import *
 from Spike import *
@@ -16,22 +17,27 @@ from Utils import *
 
 from Visual import *
 
+import Genetic
+
+
 class Thread:
     def __init__(self, params):
         self.params = params
-        self.params.update({'tick' : 0})
+        self.params.update({'tick': 0})
 
-        env_max_times = {'spike' : params['spike_lifespan'], 'food' : params['food_lifespan']}
+        env_max_times = {'spike': params['spike_lifespan'], 'food': params['food_lifespan']}
         self.environment = Environment(env_max_times)
 
         self.colony = Colony(params['worm_lifespan'])
+        self.best_worms = []
 
         visual_params = {
             'world_width' : self.params['world_width'],
             'world_height' : self.params['world_height'],
             'width_scale' : self.params['visual_width_scale'],
             'height_scale' : self.params['visual_height_scale'],
-            'worm_draw_color' : self.params['visual_worm_draw_color'],
+            'worm_1_draw_color' : self.params['visual_worm_tribe_first_draw_color'],
+            'worm_2_draw_color': self.params['visual_worm_tribe_second_draw_color'],
             'spike_draw_color' : self.params['visual_spike_draw_color'],
             'food_draw_color' : self.params['visual_food_draw_color'],
             'fps' : self.params['visual_fps'],
@@ -39,15 +45,72 @@ class Thread:
             'save_recap' : self.params['visual_save_recap']}
         self.visual = Visual(visual_params)
 
-    def _generate_init_worms(self):
-        worms_params_x = npr.randint(0, self.params['world_width'], self.params['worms_init_number'])
-        worms_params_y = npr.randint(0, self.params['world_height'], self.params['worms_init_number'])
+    def _generate_init_worms(self, worms=None, count_tribe=0):
+        if worms is None:
+
+            num_tribe = []
+            if count_tribe == 2:
+                for _ in range(self.params['worms_init_number'] // 2):
+                    num_tribe.append(1)
+                for _ in range(self.params['worms_init_number'] // 2):
+                    num_tribe.append(2)
+                num_tribe = shuffle(num_tribe)
+
+            worms_params_x = npr.randint(0, self.params['world_width'], self.params['worms_init_number'])
+            worms_params_y = npr.randint(0, self.params['world_height'], self.params['worms_init_number'])
+            worms_params_orient = npr.randint(0, 4, self.params['worms_init_number'])
+            for _ in enumerate(range(self.params['worms_init_number'])):
+                x = worms_params_x[_[1]]
+                y = worms_params_y[_[1]]
+                orient = worms_params_orient[_[1]]
+                if count_tribe == 2:
+                    self.colony.emplace_worm(x, y, orient, tribe=num_tribe[_[0]])
+                else:
+                    self.colony.emplace_worm(x, y, orient)
+        else:
+            worms = shuffle(worms)
+            num_tribe = []
+            if count_tribe == 2:
+                for _ in range(len(worms)//2):
+                    num_tribe.append(1)
+                for _ in range(len(worms)//2):
+                    num_tribe.append(2)
+                num_tribe = shuffle(num_tribe)
+
+            worms_params_x = npr.randint(0, self.params['world_width'], len(worms))
+            worms_params_y = npr.randint(0, self.params['world_height'], len(worms))
+            worms_params_orient = npr.randint(0, 4, self.params['worms_init_number'])
+            for worm in enumerate(worms):
+                x = worms_params_x[worm[0]]
+                y = worms_params_y[worm[0]]
+                orient = worms_params_orient[worm[0]]
+                if count_tribe == 2:
+                    self.colony.emplace_worm(x, y, orient=orient, weights=worm[1], tribe=num_tribe[worm[0]])
+                else:
+                    self.colony.emplace_worm(x, y, orient=orient, weights=worm[1])
+
+    def _generate_init_worms_test(self, worms, tribe=0):
+        num_tribe = []
+        if tribe == 2 and len(worms) % 2 == 0:
+            for _ in range(len(worms)//2):
+                num_tribe.append(1)
+            for _ in range(len(worms)//2):
+                num_tribe.append(2)
+            num_tribe = shuffle(num_tribe)
+
+        worms_params_x = npr.randint(0, self.params['world_width'], len(worms))
+        worms_params_y = npr.randint(0, self.params['world_height'], len(worms))
         worms_params_orient = npr.randint(0, 4, self.params['worms_init_number'])
-        for _ in range(self.params['worms_init_number']):
-            x = worms_params_x[_]
-            y = worms_params_y[_]
-            orient = worms_params_orient[_]
-            self.colony.emplace_worm(x, y, orient)
+
+        for worm in enumerate(worms):
+            x = worms_params_x[worm[0]]
+            y = worms_params_y[worm[0]]
+            orient = worms_params_orient[worm[0]]
+
+            if tribe == 2:
+                self.colony.emplace_worm(x, y, orient=orient, weights=worm[1], tribe=num_tribe[worm[0]])
+            else:
+                self.colony.emplace_worm(x, y, orient=orient, weights=worm[1])
 
     def _generate_init_spikes(self):
         spike_params_x = npr.randint(0, self.params['world_width'], self.params['spike_init_number'])
@@ -57,10 +120,26 @@ class Thread:
             y = spike_params_y[_]
             self.environment.emplace_spike(x, y)
 
+    def _generate_init_spikes_test(self):
+        spike_params_x = npr.randint(0, self.params['world_width'], self.params['spike_init_number'])
+        spike_params_y = npr.randint(0, self.params['world_height'], self.params['spike_init_number'])
+        for _ in range(5):
+            x = spike_params_x[_]
+            y = spike_params_y[_]
+            self.environment.emplace_spike(x, y)
+
     def _generate_init_food(self):
         food_params_x = npr.randint(0, self.params['world_width'], self.params['food_init_number'])
         food_params_y = npr.randint(0, self.params['world_height'], self.params['food_init_number'])
         for _ in range(self.params['food_init_number']):
+            x = food_params_x[_]
+            y = food_params_y[_]
+            self.environment.emplace_food(x, y)
+
+    def _generate_init_food_test(self):
+        food_params_x = npr.randint(0, self.params['world_width'], self.params['food_init_number'])
+        food_params_y = npr.randint(0, self.params['world_height'], self.params['food_init_number'])
+        for _ in range(100):
             x = food_params_x[_]
             y = food_params_y[_]
             self.environment.emplace_food(x, y)
@@ -212,6 +291,16 @@ class Thread:
                 old_health = int_worm.get_health()
                 new_health = old_health - WORM_DAMAGE
                 int_worm.set_health(new_health)
+
+                old_saturation = worm.get_saturation()
+                worm.set_saturation(old_saturation - int(old_saturation*self.params['breed_sat_share']))
+
+                if int_worm.get_tribe != 0 or worm.get_tribe() != 0:
+                    if int_worm.get_tribe() == worm.get_tribe():
+                        worm.attack_friendly = worm.attack_friendly + 1
+                    else:
+                        worm.attack_enemy = worm.attack_enemy + 1
+
                 self.stats['attacks'] += 1
 
     def _food_interaction(self, worm, attack):
@@ -314,17 +403,32 @@ class Thread:
 
         return final_world_view
 
-    def _epsilon_rand(self, action, age):
-        odds = npr.uniform(0, 1)
-        inadequacy_cap = self.params['worm_lifespan']*self.params['adequacy_increase_span']
-        worm_expirience = (1 - self.params['worm_adequacy'])*(float(age)/inadequacy_cap)
-        global_inadequacy = max(1. - self.params['tick']/float(self.params['global_adequacy_span']*self.params['world_lifespan']), 0.)
-        worm_adequacy = self.params['worm_adequacy'] + worm_expirience - global_inadequacy
-        if odds > worm_adequacy: # time for crazy actions
-            crazy_action = npr.randint(0, 18)
-            self.stats['crazy_actions'] += 1
-            return crazy_action
-        return action
+    def _epsilon_rand(self, action, age, epoch=0, genetic=False):
+        if genetic == False:
+            odds = npr.uniform(0, 1)
+            inadequacy_cap = self.params['worm_lifespan']*self.params['adequacy_increase_span']
+            worm_expirience = (1 - self.params['worm_adequacy'])*(float(age)/inadequacy_cap)
+            global_inadequacy = max(1. - self.params['tick']/float(self.params['global_adequacy_span']*self.params['world_lifespan']), 0.)
+            worm_adequacy = self.params['worm_adequacy'] + worm_expirience - global_inadequacy
+            if odds > worm_adequacy: # time for crazy actions
+                crazy_action = npr.randint(0, 18)
+                self.stats['crazy_actions'] += 1
+                return crazy_action
+            return action
+        else:
+            odds = npr.uniform(0, 1)
+            inadequacy_cap = self.params['worm_lifespan'] * self.params['adequacy_increase_span']
+            worm_expirience = (1 - self.params['worm_adequacy']) * ((age + 4*epoch) / inadequacy_cap)
+            #print("ADD: ", worm_expirience, "  ", age)
+            #global_inadequacy = max(
+            #    1. - self.params['tick'] / float(self.params['global_adequacy_span'] * self.params['world_lifespan']),0.)
+            #worm_adequacy = self.params['worm_adequacy'] + worm_expirience - global_inadequacy/2
+            print("ADDEQ: ", worm_expirience)
+            if odds > worm_expirience:  # time for crazy actions
+                crazy_action = npr.randint(0, 18)
+                self.stats['crazy_actions'] += 1
+                return crazy_action
+            return action
 
     def _extract_actions(self, action):
         move = action // 6
@@ -336,24 +440,45 @@ class Thread:
         if self.params['tick'] % self.params['learn_freq'] == 0:
             for worm in self.colony:
                 worm_loss = worm.learn(self.params['tick'])
-                print(worm_loss)
                 self.stats['loss'] += worm_loss
-                
             self.stats['loss'] /= len(self.colony)
+            print(self.stats['loss'])
+
+    def _learn_GA(self):
+        for worm in self.colony:
+            worm.set_loss_GA()
+            worm_loss = worm.get_loss_GA()
+            self.stats['loss'] += worm_loss
+        self.stats['loss'] /= len(self.colony)
+        print("Loss: ", self.stats['loss'])
 
     def _breed(self, worm):
         if worm.get_time() < self.params['breeding_age'] or worm.did_bred() or worm.get_saturation() < self.params['breed_sat_barrier']:
             return
+
         x0, y0, or0 = worm.get_position()
+
         breed = self.colony.get_worm_by_position(x0, y0, except_for=worm.get_id())
-        if breed == None:
+        if breed is None:
             return
         if breed.get_time() < self.params['breeding_age'] or breed.did_bred() or breed.get_saturation() < self.params['breed_sat_barrier']:
             return
+
         while True:
             odds = npr.uniform(0, 1)
             if odds > self.params['breeding_prob']:
                 return
+
+            if breed.get_tribe() == worm.get_tribe():
+                new_tribe = breed.get_tribe()
+                breed.update_count_childrens()
+                worm.update_count_childrens()
+            else:
+                new_tribe = random.randint(1, 2)
+                if new_tribe == worm.get_tribe():
+                    worm.update_count_childrens()
+                else:
+                    breed.update_count_childrens()
 
             sd1 = worm.get_state_dict()
             sd2 = breed.get_state_dict()
@@ -362,13 +487,15 @@ class Thread:
             m_f = random.randint(0, 1)
             if m_f == 0:
                 for k in sd1:
-                    l = npr.uniform(-0.2, 0.2)
-                    new_weight = (l*sd1[k]).clone().detach().requires_grad_(True)
+                    l = np.random.choice([-0.05, 0, 0.05])
+                    #l = npr.uniform(-0.01, 0.01)
+                    new_weight = sd1[k].clone().detach().requires_grad_(True) + l
                     nsd[k] = new_weight
             else:
                 for k in sd2:
-                    l = npr.uniform(-0.2, 0.2)
-                    new_weight = (l * sd2[k]).clone().detach().requires_grad_(True)
+                    l = np.random.choice([-0.05, 0, 0.05])
+                    #l = npr.uniform(-0.01, 0.01)
+                    new_weight = sd2[k].clone().detach().requires_grad_(True) + l
                     nsd[k] = new_weight
 
             '''
@@ -386,12 +513,71 @@ class Thread:
             new_sat = int(sat1*self.params['breed_sat_share']) + int(sat2*self.params['breed_sat_share'])
             worm.set_saturation(sat1 - int(sat1*self.params['breed_sat_share']))
             breed.set_saturation(sat2 - int(sat2*self.params['breed_sat_share']))
-            self.colony.emplace_worm(x, y, orient, nsd, new_sat)
+            self.colony.emplace_worm(x, y, orient, nsd, new_sat, tribe=new_tribe)
             worm.breed_restore()
             breed.breed_restore()
             self.stats['breedings'] += 1
 
-    def _run(self):
+    def _run_TEST(self):
+        while(self._is_alive()):
+            self._tick()
+            self.world_view = self._render_world()
+            for worm in self.colony:
+                worm_position = list(worm.get_position())
+                print(worm_position)
+                vb = self._get_worm_view(worm_position)
+                worm_view = self.__fill_worm_view(vb)
+                worm_view = self._rotate_worm_view(worm_view, worm_position[2])
+                worm_view = self._normalize_worm_view(worm_view)
+                action = worm(worm_view) # feed worm view to worm
+                #action = self._epsilon_rand(action, worm.get_time())
+                move, turn, attack = self._extract_actions(action)
+                # print(move, turn, attack)
+                movement = (move, turn)
+                worm_position = self._update_worm_position(worm_position, movement)
+                worm.set_position(*worm_position)
+                self._colony_interaction(worm, attack)
+                self._environment_interaction(worm, attack)
+
+            for worm in self.colony:
+                if self.params['breeding']:
+                    self._breed(worm)
+                worm.restore()
+                worm.memorize()
+
+            #if self.params['learning']:
+            #    self._learn()
+
+            if not self.params['immortal']:
+                self.stats['deaths'] = self.colony.clean_up()
+
+            self.stats['resources_exhaustion'] = self.environment.clean_up()
+            self._spawn()
+            self.visual.show(self.colony, self.environment, self.stats)
+
+            if self.params['visual_debug_show']:
+                sleep(RENDER_DELAY*(10**(-3)))
+            else:
+                health_distribution = [0 for i in range(101)]
+                saturation_distribution = [0 for i in range(101)]
+                age_distribution = [0 for i in range(self.colony.max_time + 1)]
+                print(self.colony.len())
+                for w in self.colony:
+                    w_health = int(round(w.get_health()))
+                    w_saturation = int(round(w.get_saturation()))
+                    w_age = w.get_time()
+                    if w_health >= 0:
+                        health_distribution[w_health] += 1
+                    if w_saturation >= 0:
+                        saturation_distribution[w_saturation] += 1
+                    if w_age >= 0:
+                        age_distribution[min(w_age, self.colony.max_time)] += 1
+                print("HEALTH: ", health_distribution)
+                print("SATURATION: ", saturation_distribution)
+                print("AGE: ", age_distribution)
+        self.visual.clear()
+
+    def _run_RL(self):
         while(self._is_alive()):
             self._tick()
             self.world_view = self._render_world()
@@ -402,7 +588,7 @@ class Thread:
                 worm_view = self._rotate_worm_view(worm_view, worm_position[2])
                 worm_view = self._normalize_worm_view(worm_view)
                 action = worm(worm_view) # feed worm view to worm
-                action = self._epsilon_rand(action, worm.get_time())
+                action = self._epsilon_rand(action, age=worm.get_time())
                 move, turn, attack = self._extract_actions(action)
                 # print(move, turn, attack)
                 movement = (move, turn)
@@ -410,6 +596,7 @@ class Thread:
                 worm.set_position(*worm_position)
                 self._colony_interaction(worm, attack)
                 self._environment_interaction(worm, attack)
+
             for worm in self.colony:
                 if self.params['breeding']:
                     self._breed(worm)
@@ -448,10 +635,108 @@ class Thread:
                 print("AGE: ", age_distribution)
         self.visual.clear()
 
-    def generate(self):
-        self._generate_init_worms()
+    def _run_GA(self, epoch):
+        print("EPOCH: ", epoch)
+        while self._is_alive():
+            if self.params['tick'] >= 25:
+                break
+            self._tick()
+            self.world_view = self._render_world()
+            for worm in self.colony:
+                #print("TRIBE: ", worm.get_tribe())
+                worm_position = list(worm.get_position())
+                vb = self._get_worm_view(worm_position)
+                worm_view = self.__fill_worm_view(vb)
+                #print((worm_view.flatten()/1000).shape)
+                worm_view = self._rotate_worm_view(worm_view, worm_position[2])
+                worm_view = self._normalize_worm_view(worm_view)
+                #worm_view = worm_view.flatten()
+                #print(worm_view.shape)
+                action = worm(worm_view) # feed worm view to worm
+
+                #action = self._epsilon_rand(action, age=worm.get_time(), epoch=epoch, genetic=True)
+
+                move, turn, attack = self._extract_actions(action)
+                # print(move, turn, attack)
+                movement = (move, turn)
+                worm_position = self._update_worm_position(worm_position, movement)
+                worm.set_position(*worm_position)
+                self._colony_interaction(worm, attack)
+                self._environment_interaction(worm, attack)
+
+            for worm in self.colony:
+                if self.params['breeding']:
+                    self._breed(worm)
+                worm.restore()
+                worm.memorize()
+
+            self._learn_GA()
+
+            if not self.params['immortal']:
+                self.stats['deaths'] = self.colony.clean_up()
+
+            self.stats['resources_exhaustion'] = self.environment.clean_up()
+            self._spawn()
+            self.visual.show(self.colony, self.environment, self.stats)
+
+            if self.params['visual_debug_show']:
+                sleep(RENDER_DELAY*(10**(-3)))
+            else:
+                health_distribution = [0 for i in range(101)]
+                saturation_distribution = [0 for i in range(101)]
+                age_distribution = [0 for i in range(self.colony.max_time + 1)]
+                print(self.colony.len())
+                for w in self.colony:
+                    w_health = int(round(w.get_health()))
+                    w_saturation = int(round(w.get_saturation()))
+                    w_age = w.get_time()
+                    if w_health >= 0:
+                        health_distribution[w_health] += 1
+                    if w_saturation >= 0:
+                        saturation_distribution[w_saturation] += 1
+                    if w_age >= 0:
+                        age_distribution[min(w_age, self.colony.max_time)] += 1
+                print("HEALTH: ", health_distribution)
+                print("SATURATION: ", saturation_distribution)
+                print("AGE: ", age_distribution)
+
+        if self.colony.len() < 10:
+            print("Worms are small")
+            return
+
+        self.best_worms = Genetic.get_best_worm(self.colony)
+        self._learn_GA()
+
+        #for worm in self.best_worms:
+        #    print("LOSS_GA ", worm.get_loss_GA())
+
+        weights = []
+        for worm in self.best_worms:
+            for _ in range(10):
+                weight = Genetic.mutate(worm)
+                weights.append(weight)
+
+        self.visual.clear()
+
+        torch.save(self.best_worms[0].get_state_dict(), "save_worm/worm_GA.pt")
+
+        return weights
+
+    def generate(self, weights=None, count_tribe=0):
+        self._generate_init_worms(worms=weights, count_tribe=count_tribe)
         self._generate_init_spikes()
         self._generate_init_food()
+
+    def generate_test(self, weights=None, spikes=False, food=False, tribe=1):
+        self._generate_init_worms_test(weights, tribe=tribe)
+        if spikes:
+            self._generate_init_spikes_test()
+        if food:
+            self._generate_init_food_test()
+
+        #self._generate_init_worms(worms=weights, count_tribe=count_tribe)
+        #self._generate_init_spikes()
+        #self._generate_init_food()
 
     def show_params(self):
         hparams = self.params.copy()
@@ -476,12 +761,21 @@ class Thread:
         hparams['RENDER_DELAY'] = RENDER_DELAY
         self.visual.show_params(hparams)
 
-    def start(self):
-        self._run()
+    def start_RL(self):
+        self._run_RL()
+
+    def start_TEST(self):
+        self._run_TEST()
+
+    def start_GA(self, epoch):
+        weights = self._run_GA(epoch)
+        return weights
 
 
 if __name__ == "__main__":
     opts, _ = getopt.getopt(sys.argv[1:], "", cmd_params.keys())
+    mode = int(input("Choose the way to learning or test_mode:\n1 -- RL\n2 -- GA\n3 -- TEST\n"))
+    count_tribe = int(input("Choose count of tribe:\n1 -- One tribe\n2 -- Two tribe\n"))
     for key, value in opts:
         if key[2:] in cmd_to_thread.keys():
             param_name = cmd_to_thread[key[2:]]
@@ -494,7 +788,27 @@ if __name__ == "__main__":
             else:
                 thread_params[param_name] = True
                 print('-< %s has been set to True\n' % (cmd_params[key[2:]]))
-    main = Thread(thread_params)
-    main.generate()
-    main.show_params()
-    main.start()
+
+    if mode == 1:
+        main = Thread(thread_params)
+        main.generate(count_tribe=count_tribe)
+        main.show_params()
+        main.start_RL()
+    elif mode == 2:
+        main = Thread(thread_params)
+        main.generate(count_tribe=count_tribe)
+        main.show_params()
+        for _ in range(150):
+            weights = main.start_GA(_)
+            main = Thread(thread_params)
+            main.generate(weights=weights, count_tribe=count_tribe)
+            main.show_params()
+    elif mode == 3:
+        model = WormNET()
+        model.load_state_dict(torch.load('save_worm/worm_GA.pt'))
+        model.eval()
+
+        main = Thread(thread_params)
+        main.generate_test(100*[model.state_dict()], food=True)
+        main.show_params()
+        main.start_TEST()

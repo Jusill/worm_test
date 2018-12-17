@@ -125,7 +125,7 @@ class Environment:
                 return f
 
     def interception(self, x, y):
-        return (self._spike_interception(x, y), self._food_interception(x, y))
+        return self._spike_interception(x, y), self._food_interception(x, y)
 
     # adding methods
     def add_spike(self, spike):
